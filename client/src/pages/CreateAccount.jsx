@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 export default function Home() {
 const [fullName, setFullName] = useState("");
@@ -7,9 +7,11 @@ const [email, setEmail] = useState("");
 const [password, setPassword] = useState("");
 const [confirmPassword, setConfirmPassword] = useState("");
 const navigate = useNavigate();
+const location = useLocation();
 
 const [error, setError] = useState("");
 const [loading, setLoading] = useState(false);
+
 const handleSignup = async (e) => {
   e.preventDefault();
   setLoading(true);
@@ -32,7 +34,9 @@ const handleSignup = async (e) => {
     if (data.success) {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
-      navigate("/");
+
+      // Return to the brief after auth; new saves are stored under this user.
+      navigate(location.state?.from || "/");
     } else {
       setError(data.error);
     }
@@ -84,7 +88,7 @@ const handleSignup = async (e) => {
                 </form>
             </div>
             <p className="mt-4 text-xl font-light text-white py-4">Already have an account?
-                <Link to="/" className="font-semibold text-white"> Sign in</Link>
+                <Link to="/login" state={location.state} className="font-semibold text-white"> Sign in</Link>
             </p>
         
         </main>

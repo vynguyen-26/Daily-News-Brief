@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 export default function Home() {
 
@@ -8,6 +8,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogin = async (e) => {
     e.preventDefault(); 
@@ -26,7 +27,10 @@ export default function Home() {
       if (data.success) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
-        navigate("/home");
+
+        // Return to the brief after auth; the reader can save into their own
+        // account-specific saved list once logged in.
+        navigate(location.state?.from || "/");
       } else {
         setError(data.error);
       }
@@ -64,7 +68,7 @@ export default function Home() {
                 </form>
             </div>
             <p className="mt-4 text-xl font-light text-white py-4">Don't have an account?
-                <Link to="/signup" className="font-semibold text-white"> Sign up</Link>
+                <Link to="/signup" state={location.state} className="font-semibold text-white"> Sign up</Link>
             </p>
         
         </main>

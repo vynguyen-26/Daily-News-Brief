@@ -1,15 +1,13 @@
-import {useEffect, useState} from "react";
+import {useState} from "react";
 import {Bookmark} from "lucide-react";
 import NewsCard from "../components/NewsCard";
 import NavigationBar from "../components/NavigationBar";
+import { getSavedArticlesForCurrentUser } from "../utils/savedArticles";
 
 export default function SavedPage() {
-    const [savedArticles, setSavedArticles] = useState([]);
-
-    useEffect(() => {
-        const saved = JSON.parse(localStorage.getItem("savedArticles")) || [];
-        setSavedArticles(saved);
-    }, []);
+    const [savedArticles] = useState(() => {
+        return getSavedArticlesForCurrentUser();
+    });
 
     return (
         <div className="w-full min-h-screen px-4 sm:px-6 lg:px-8 py-8 bg-zinc-950 border-b border-zinc-800">

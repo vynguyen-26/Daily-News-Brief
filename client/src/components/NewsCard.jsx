@@ -1,30 +1,43 @@
 import { Clock, Bookmark, BookmarkCheck } from "lucide-react";
-import {Link} from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  isCurrentUserAuthenticated,
+  isArticleSavedForCurrentUser,
+  toggleSavedArticleForCurrentUser,
+} from "../utils/savedArticles";
 
 export default function NewsCard({ article }) {
-    const savedArticles = JSON.parse(localStorage.getItem("savedArticles")) || [];
-    const saved = savedArticles.some((savedArticle) => savedArticle.id === article.id);
+    const navigate = useNavigate();
+    const location = useLocation();
+    const saved = isArticleSavedForCurrentUser(article.id);
 
     const timeAgo = article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : "Recently";
+    // Article ids can be source URLs, so encode them before using them in a route.
+    const articlePath = `/article/${encodeURIComponent(article.id)}`;
+    const articleLinkState = {
+      article,
+      from: location.pathname,
+    };
 
     function toggleSaveArticle() {
-      const currentSaved = JSON.parse(localStorage.getItem("savedArticles")) || [];
+      if (!isCurrentUserAuthenticated()) {
+        // Saving is the first action that requires auth, so keep the article
+        // unchanged until the reader logs in and returns to the brief.
+        navigate("/login", {
+          state: {
+            from: location.pathname,
+          },
+        });
+        return;
+      }
 
-      const isAlreadySaved = currentSaved.some(
-        (savedArticle) => savedArticle.id === article.id
-      );
-
-      const nextSaved = isAlreadySaved
-        ? currentSaved.filter((savedArticle) => savedArticle.id !== article.id)
-        : [...currentSaved, article];
-
-      localStorage.setItem("savedArticles", JSON.stringify(nextSaved));
+      toggleSavedArticleForCurrentUser(article);
       window.location.reload();
     }
 
     return (
         <div className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 hover:border-zinc-700 transition-all group">
-      <Link to={`/article/${article.id}`}>
+      <Link to={articlePath} state={articleLinkState}>
         <div className="aspect-video overflow-hidden">
           <img
             src={article.imageUrl}
@@ -45,7 +58,7 @@ export default function NewsCard({ article }) {
           </div>
         </div>
 
-        <Link to={`/article/${article.id}`}>
+        <Link to={articlePath} state={articleLinkState}>
           <h3 className="text-xl font-semibold text-white mb-2 group-hover:text-blue-400 transition-colors line-clamp-2">
             {article.title}
           </h3>
@@ -61,7 +74,7 @@ export default function NewsCard({ article }) {
           </span>
 
           <button
-            onClick={() => toggleSaveArticle(article.id)}
+            onClick={toggleSaveArticle}
             className={`p-2 rounded-lg transition-colors ${
               saved
                 ? "bg-blue-600 text-white"
