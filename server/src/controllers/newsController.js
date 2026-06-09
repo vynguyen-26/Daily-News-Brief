@@ -2,6 +2,7 @@ const newsService = require("../services/newsService");
 
 async function getHeadlines(req, res) {
   try {
+    // newsService adds separate summary and key takeaway fields by default.
     const news = await newsService.getHeadlines(req.query);
 
     res.json(news);
@@ -20,6 +21,7 @@ async function searchArticles(req, res) {
       });
     }
 
+    // Search results also get article briefs, with server-side fallback if Gemini fails.
     const news = await newsService.searchArticles(req.query);
 
     res.json(news);

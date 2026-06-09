@@ -4,12 +4,22 @@ import SavedPage from './pages/SavedPage';
 import Login from './pages/Login';
 import CreateAccount from './pages/CreateAccount';
 import ArticleDetail from './pages/ArticleDetail';
-import { isCurrentUserAuthenticated } from './utils/savedArticles';
+import { AuthProvider } from './context/AuthContext';
+import { useAuth } from './context/useAuth';
 
 function RequireAuth({ children }) {
   const location = useLocation();
+  const { isAuthenticated, loading } = useAuth();
 
-  if (!isCurrentUserAuthenticated()) {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 px-8 py-8 text-zinc-400">
+        Loading...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
     // Send guests to login, then return them to the protected page afterward.
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
@@ -19,30 +29,32 @@ function RequireAuth({ children }) {
 
 export default function App() {
   return (
-    <Router>
-      <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/home" element={<Navigate to="/" replace />} />
-          <Route path="/HomePage" element={<Navigate to="/" replace />} />
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/saved"
-            element={
-              <RequireAuth>
-                <SavedPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/article/:articleId"
-            element={
-              <RequireAuth>
-                <ArticleDetail />
-              </RequireAuth>
-            }
-          />
-          <Route path="/signup" element={<CreateAccount />} />
-      </Routes>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/home" element={<Navigate to="/" replace />} />
+            <Route path="/HomePage" element={<Navigate to="/" replace />} />
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/saved"
+              element={
+                <RequireAuth>
+                  <SavedPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/article/:articleId"
+              element={
+                <RequireAuth>
+                  <ArticleDetail />
+                </RequireAuth>
+              }
+            />
+            <Route path="/signup" element={<CreateAccount />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }

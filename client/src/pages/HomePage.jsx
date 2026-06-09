@@ -4,10 +4,11 @@ import { Bookmark, BookmarkCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
+    deleteSavedArticleForCurrentUser,
     getSavedArticlesForCurrentUser,
-    isCurrentUserAuthenticated,
-    toggleSavedArticleForCurrentUser,
+    saveArticleForCurrentUser,
 } from "../utils/savedArticles";
+import { useAuth } from "../context/useAuth";
 
 const categories = [
   { id: 1, name: "All", value: "all" },
@@ -76,17 +77,14 @@ async function requestCategoryArticle(categoryValue) {
 export default function HomePage() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { isAuthenticated } = useAuth();
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [categoryArticles, setCategoryArticles] = useState([]);
     const [searchResults, setSearchResults] = useState([]);
     const [selectedArticle, setSelectedArticle] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    const [savedArticleIds, setSavedArticleIds] = useState(() => {
-        const savedArticles = getSavedArticlesForCurrentUser();
-
-        return savedArticles.map((article) => article.id);
-    });
+    const [savedArticleIds, setSavedArticleIds] = useState([]);
     // Keeps async default-load results from overwriting a user's manual choice.
     const showingDefaultBriefRef = useRef(true);
     const displayedArticles = selectedArticle ? [selectedArticle] : categoryArticles;
@@ -135,6 +133,24 @@ export default function HomePage() {
 
         loadDefaultBrief();
     }, []);
+
+    useEffect(() => {
+        async function loadSavedArticles() {
+            if (!isAuthenticated) {
+                setSavedArticleIds([]);
+                return;
+            }
+
+            try {
+                const savedArticles = await getSavedArticlesForCurrentUser();
+                setSavedArticleIds(savedArticles.map((article) => article.id));
+            } catch {
+                setSavedArticleIds([]);
+            }
+        }
+
+        loadSavedArticles();
+    }, [isAuthenticated]);
 
     async function toggleCategory(categoryValue) {
         // After the default brief loads, category buttons behave like normal
@@ -216,8 +232,8 @@ export default function HomePage() {
         return savedArticleIds.includes(articleId);
     }
 
-    function toggleSaveArticle(article) {
-        if (!isCurrentUserAuthenticated()) {
+    async function toggleSaveArticle(article) {
+        if (!isAuthenticated) {
             // Match the existing save flow: guests can read summaries, but saving
             // sends them to login before any article is written to saved storage.
             navigate("/login", {
@@ -228,7 +244,10 @@ export default function HomePage() {
             return;
         }
 
-        const nextSaved = toggleSavedArticleForCurrentUser(article);
+        const nextSaved = isArticleSaved(article.id)
+            ? await deleteSavedArticleForCurrentUser(article.id)
+            : await saveArticleForCurrentUser(article);
+
         setSavedArticleIds(nextSaved.map((savedArticle) => savedArticle.id));
     }
     

@@ -1,9 +1,12 @@
-import {Link, useLocation} from "react-router-dom";
-import {Sparkles, Bookmark} from "lucide-react";
+import {Link, useLocation, useNavigate} from "react-router-dom";
+import {Sparkles, Bookmark, LogIn, LogOut} from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "../context/useAuth";
 
 export default function NavigationBar({ onSearch }) {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { isAuthenticated, logout } = useAuth();
     const [query, setQuery] = useState("");
     
     const ishome = location.pathname === "/";
@@ -19,6 +22,11 @@ export default function NavigationBar({ onSearch }) {
         }
 
         onSearch(trimmedQuery);
+    }
+
+    async function handleLogout() {
+        await logout();
+        navigate("/login");
     }
 
     return (
@@ -62,6 +70,25 @@ export default function NavigationBar({ onSearch }) {
                         <Bookmark className="w-4 h-5" />
                         <span>Saved</span>
                     </Link>
+
+                    {isAuthenticated ? (
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
+                        >
+                            <LogOut className="w-4 h-5" />
+                            <span>Logout</span>
+                        </button>
+                    ) : (
+                        <Link
+                            to="/login"
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
+                        >
+                            <LogIn className="w-4 h-5" />
+                            <span>Login</span>
+                        </Link>
+                    )}
                 </div>
             </div>
         </nav>

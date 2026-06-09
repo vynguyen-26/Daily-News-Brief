@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/useAuth";
 
 export default function Home() {
 
@@ -9,6 +10,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { login } = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault(); 
@@ -16,27 +18,14 @@ export default function Home() {
     setError("");
 
     try {
-      const res = await fetch("/api/auth/login", { 
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      await login({ email, password });
 
-      const data = await res.json();
-
-      if (data.success) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-
-        // Return to the brief after auth; the reader can save into their own
-        // account-specific saved list once logged in.
-        navigate(location.state?.from || "/");
-      } else {
-        setError(data.error);
-      }
+      // Return to the brief after auth; the reader can save into their own
+      // account-specific saved list once logged in.
+      navigate(location.state?.from || "/");
     } catch (err) {
       console.error(err);
-      setError("Something went wrong");
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -45,7 +34,9 @@ export default function Home() {
   return (
     <div className="relative flex min-h-screen flex-col bg-zinc-950 border-b border-zinc-800">
         <header className="flex items-center gap-3 px-5 py-4 shadow-md bg-zinc-950 border-b border-zinc-800">
-            <h1 className="font-bold text-2xl !text-white font-oswald">Daily News Brief</h1>
+            <Link to="/" className="font-bold text-2xl !text-white font-oswald">
+              Daily News Brief
+            </Link>
         </header>
         <main className="flex flex-1 flex-col items-center justify-center px-8 font-heebo" >
             <h2 className="!text-5xl !font-medium !text-white py-6">Login</h2>

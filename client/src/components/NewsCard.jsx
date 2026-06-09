@@ -1,15 +1,11 @@
 import { Clock, Bookmark, BookmarkCheck } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import {
-  isCurrentUserAuthenticated,
-  isArticleSavedForCurrentUser,
-  toggleSavedArticleForCurrentUser,
-} from "../utils/savedArticles";
+import { useState } from "react";
 
-export default function NewsCard({ article }) {
+export default function NewsCard({ article, isAuthenticated = false, isSaved = false, onToggleSave }) {
     const navigate = useNavigate();
     const location = useLocation();
-    const saved = isArticleSavedForCurrentUser(article.id);
+    const [saving, setSaving] = useState(false);
 
     const timeAgo = article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : "Recently";
     // Article ids can be source URLs, so encode them before using them in a route.
@@ -19,8 +15,8 @@ export default function NewsCard({ article }) {
       from: location.pathname,
     };
 
-    function toggleSaveArticle() {
-      if (!isCurrentUserAuthenticated()) {
+    async function toggleSaveArticle() {
+      if (!isAuthenticated) {
         // Saving is the first action that requires auth, so keep the article
         // unchanged until the reader logs in and returns to the brief.
         navigate("/login", {
@@ -31,8 +27,17 @@ export default function NewsCard({ article }) {
         return;
       }
 
-      toggleSavedArticleForCurrentUser(article);
-      window.location.reload();
+      if (!onToggleSave) {
+        return;
+      }
+
+      setSaving(true);
+
+      try {
+        await onToggleSave(article);
+      } finally {
+        setSaving(false);
+      }
     }
 
     return (
@@ -75,13 +80,14 @@ export default function NewsCard({ article }) {
 
           <button
             onClick={toggleSaveArticle}
+            disabled={saving}
             className={`p-2 rounded-lg transition-colors ${
-              saved
+              isSaved
                 ? "bg-blue-600 text-white"
                 : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white"
             }`}
           >
-            {saved ? (
+            {isSaved ? (
               <BookmarkCheck className="w-5 h-5" />
             ) : (
               <Bookmark className="w-5 h-5" />

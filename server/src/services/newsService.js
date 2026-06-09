@@ -1,3 +1,5 @@
+const { generateArticleBrief } = require("./aiService");
+
 const NEWS_API_BASE_URL = "https://newsapi.org/v2";
 
 function formatArticle(article, index) {
@@ -14,7 +16,28 @@ function formatArticle(article, index) {
   };
 }
 
-async function fetchFromNewsApi(endpoint, params) {
+function shouldIncludeAi(value) {
+  return value !== false && value !== "false";
+}
+
+async function enrichArticlesWithBriefs(articles) {
+  const enrichedArticles = await Promise.all(
+    articles.map(async (article) => {
+      // Each article gets summary, takeaway, and bias fields. generateArticleBrief
+      // checks MongoDB first so previously analyzed articles do not call Gemini again.
+      const brief = await generateArticleBrief(article);
+
+      return {
+        ...article,
+        ...brief,
+      };
+    })
+  );
+
+  return enrichedArticles;
+}
+
+async function fetchFromNewsApi(endpoint, params, options = {}) {
   const apiKey = process.env.NEWS_API_KEY;
 
   if (!apiKey) {
@@ -41,18 +64,32 @@ async function fetchFromNewsApi(endpoint, params) {
     throw new Error(data.message || "Failed to fetch news");
   }
 
+  const articles = data.articles.map(formatArticle);
+  const enrichedArticles = options.includeAi
+    ? await enrichArticlesWithBriefs(articles)
+    : articles;
+
   return {
     totalResults: data.totalResults,
-    articles: data.articles.map(formatArticle),
+    articles: enrichedArticles,
   };
 }
 
-async function getHeadlines({ country = "us", category, pageSize = "20" }) {
-  return fetchFromNewsApi("/top-headlines", {
-    country,
-    category,
-    pageSize,
-  });
+async function getHeadlines({
+  country = "us",
+  category,
+  pageSize = "20",
+  includeAi = "true",
+}) {
+  return fetchFromNewsApi(
+    "/top-headlines",
+    {
+      country,
+      category,
+      pageSize,
+    },
+    { includeAi: shouldIncludeAi(includeAi) }
+  );
 }
 
 async function searchArticles({
@@ -62,15 +99,20 @@ async function searchArticles({
   pageSize = "20",
   from,
   to,
+  includeAi = "true",
 }) {
-  return fetchFromNewsApi("/everything", {
-    q,
-    language,
-    sortBy,
-    pageSize,
-    from,
-    to,
-  });
+  return fetchFromNewsApi(
+    "/everything",
+    {
+      q,
+      language,
+      sortBy,
+      pageSize,
+      from,
+      to,
+    },
+    { includeAi: shouldIncludeAi(includeAi) }
+  );
 }
 
 module.exports = {

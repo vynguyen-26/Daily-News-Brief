@@ -1,13 +1,41 @@
-import {useState} from "react";
+import {useEffect, useState} from "react";
 import {Bookmark} from "lucide-react";
 import NewsCard from "../components/NewsCard";
 import NavigationBar from "../components/NavigationBar";
-import { getSavedArticlesForCurrentUser } from "../utils/savedArticles";
+import {
+    deleteSavedArticleForCurrentUser,
+    getSavedArticlesForCurrentUser,
+} from "../utils/savedArticles";
+import { useAuth } from "../context/useAuth";
 
 export default function SavedPage() {
-    const [savedArticles] = useState(() => {
-        return getSavedArticlesForCurrentUser();
-    });
+    const { isAuthenticated } = useAuth();
+    const [savedArticles, setSavedArticles] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        async function loadSavedArticles() {
+            setLoading(true);
+            setError("");
+
+            try {
+                const articles = await getSavedArticlesForCurrentUser();
+                setSavedArticles(articles);
+            } catch (err) {
+                setError(err.message || "Failed to load saved articles");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadSavedArticles();
+    }, []);
+
+    async function removeSavedArticle(article) {
+        const articles = await deleteSavedArticleForCurrentUser(article.id);
+        setSavedArticles(articles);
+    }
 
     return (
         <div className="w-full min-h-screen px-4 sm:px-6 lg:px-8 py-8 bg-zinc-950 border-b border-zinc-800">
@@ -22,14 +50,23 @@ export default function SavedPage() {
                 <p className="text-zinc-400 flex items-center mb-2">Your bookmarked articles for later reading</p>
             </div>
 
+            {loading && <p className="text-zinc-400">Loading saved articles...</p>}
+            {error && <p className="text-red-400">{error}</p>}
+
             {/* Saved Articles Grid */}
-            {savedArticles.length > 0 ? (
+            {!loading && !error && savedArticles.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {savedArticles.map(article => (
-                        <NewsCard key={article.id} article={article} />
+                        <NewsCard
+                            key={article.id}
+                            article={article}
+                            isAuthenticated={isAuthenticated}
+                            isSaved
+                            onToggleSave={removeSavedArticle}
+                        />
                     ))}
                 </div>
-            ) : (
+            ) : !loading && !error ? (
                 <div className="text-center py-24">
                     <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4">
                         <Bookmark className="w-10 h-10 text-zinc-700" />
@@ -39,7 +76,7 @@ export default function SavedPage() {
                         Start bookmarking articles you want to read later
                     </p>
                 </div>
-            )}
+            ) : null}
         </div>
     );
 }

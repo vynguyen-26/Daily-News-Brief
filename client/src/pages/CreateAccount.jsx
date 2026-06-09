@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/useAuth";
 
 export default function Home() {
 const [fullName, setFullName] = useState("");
@@ -8,6 +9,7 @@ const [password, setPassword] = useState("");
 const [confirmPassword, setConfirmPassword] = useState("");
 const navigate = useNavigate();
 const location = useLocation();
+const { signup } = useAuth();
 
 const [error, setError] = useState("");
 const [loading, setLoading] = useState(false);
@@ -18,31 +20,18 @@ const handleSignup = async (e) => {
   setError("");
 
   try {
-    const res = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fullName,
-        email,
-        password,
-        confirmPassword,
-      }),
+    await signup({
+      fullName,
+      email,
+      password,
+      confirmPassword,
     });
 
-    const data = await res.json();
-
-    if (data.success) {
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
-      // Return to the brief after auth; new saves are stored under this user.
-      navigate(location.state?.from || "/");
-    } else {
-      setError(data.error);
-    }
+    // Return to the brief after auth; new saves are stored under this user.
+    navigate(location.state?.from || "/");
   } catch (err) {
     console.error(err);
-    setError("Something went wrong");
+    setError(err.message || "Something went wrong");
   } finally {
     setLoading(false);
   }
@@ -51,7 +40,9 @@ const handleSignup = async (e) => {
   return (
     <div className="relative flex min-h-screen flex-col bg-zinc-950 border-b border-zinc-800">
         <header className="flex items-center gap-3 bg-zinc-950 border-b border-zinc-800 px-10 py-6 shadow-md">
-            <h1 className="!text-5xl !font-medium !text-white font-oswald">Daily News Brief</h1>
+            <Link to="/" className="!text-5xl !font-medium !text-white font-oswald">
+              Daily News Brief
+            </Link>
         </header>
         <main className="flex flex-1 flex-col items-center justify-center px-6 font-heebo" >
             <h2 className="!text-5xl !font-bold !text-white py-6">Create Account</h2>
