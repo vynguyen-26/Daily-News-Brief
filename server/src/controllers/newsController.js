@@ -2,7 +2,7 @@ const newsService = require("../services/newsService");
 
 async function getHeadlines(req, res) {
   try {
-    // newsService adds separate summary and key takeaway fields by default.
+    // newsService adds summary, takeaway, and article-framing fields by default.
     const news = await newsService.getHeadlines(req.query);
 
     res.json(news);

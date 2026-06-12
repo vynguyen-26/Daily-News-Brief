@@ -21,6 +21,16 @@ const savedArticleSchema = new mongoose.Schema(
     summary: { type: String, default: "" },
     keyTakeaway: { type: String, default: "" },
     bias: { type: String, default: "" },
+    biasExplanation: { type: String, default: "" },
+    framingSubject: { type: String, default: "" },
+    framingLabel: { type: String, default: "" },
+    framingScore: { type: Number, default: null, min: -1, max: 1 },
+    framingExplanation: { type: String, default: "" },
+    framingStatus: {
+      type: String,
+      enum: ["complete", "insufficient", "unavailable"],
+      default: "insufficient",
+    },
   },
   { timestamps: true }
 );

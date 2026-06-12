@@ -1,6 +1,6 @@
 import NavigationBar from "../components/NavigationBar";
 import CategorySidebar from "../components/CategorySidebar";
-import { Bookmark, BookmarkCheck } from "lucide-react";
+import ArticleBriefCard from "../components/ArticleBriefCard";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -293,117 +293,17 @@ export default function HomePage() {
                     )}
 
                     {displayedArticles.length > 0 && (
-                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                            {/* Main content area */}
-                            <div className="xl:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Summary panel */}
-                                <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 min-h-[500px]">
-                                    <h2 className="text-2xl font-semibold !text-white mb-6">
-                                        Summary
-                                    </h2>
-
-                                    <div className="space-y-4">
-                                        {displayedArticles.map((article) => (
-                                            <div
-                                                key={`${article.category}-${article.id}`}
-                                                className="bg-zinc-800 border border-zinc-700 rounded-xl p-4"
-                                            >
-                                                <p className="text-blue-400 text-sm font-medium mb-2">
-                                                    {article.title}
-                                                </p>
-                                                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                                                    {article.category}
-                                                </p>
-                                                <p className="text-zinc-200">
-                                                    {article.summary || article.excerpt || "No summary available yet."}
-                                                </p>
-                                                {/* Summary cards expose saving here so readers do not need
-                                                    to leave the brief before bookmarking an article. */}
-                                                <button
-                                                    onClick={() => toggleSaveArticle(article)}
-                                                    className={`w-full mt-3 py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-2 text-xs ${
-                                                        isArticleSaved(article.id)
-                                                            ? "bg-zinc-700 text-white"
-                                                            : "bg-blue-600 text-white hover:bg-blue-500"
-                                                    }`}
-                                                >
-                                                    {isArticleSaved(article.id) ? (
-                                                        <>
-                                                            <BookmarkCheck className="w-3 h-3" />
-                                                            <span>Saved</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Bookmark className="w-3 h-3" />
-                                                            <span>Save</span>
-                                                        </>
-                                                    )}
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </section>
-
-                                {/* Key takeaways panel */}
-                                <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 min-h-[500px]">
-                                    <h2 className="text-2xl font-semibold !text-white mb-6">
-                                        Key Takeaways
-                                    </h2>
-
-                                    <div className="space-y-4">
-                                        {displayedArticles.map((article) => (
-                                            <div
-                                                key={`${article.category}-${article.id}`}
-                                                className="bg-zinc-800 border border-zinc-700 rounded-xl p-4"
-                                            >
-                                                <p className="text-blue-400 text-sm font-medium mb-2">
-                                                    {article.title}
-                                                </p>
-                                                <p className="text-zinc-200">
-                                                    {article.keyTakeaway || "AI key takeaway will appear here later."}
-                                                </p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </section>
-                            </div>
-
-                            {/* Bias indicator on right */}
-                            <aside className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 min-h-[500px]">
-                                <h2 className="text-2xl font-semibold !text-white mb-6">
-                                    Bias Indicator
-                                </h2>
-
-                                <div className="space-y-5">
-                                    <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-                                        <p className="text-zinc-400 text-sm mb-2">Overall Bias</p>
-                                        <div className="w-full h-3 rounded-full bg-gradient-to-r from-blue-500 via-zinc-500 to-red-500 mb-3" />
-                                        <p className="text-white font-medium">
-                                            {displayedArticles.length === 1 ? displayedArticles[0].bias || "Not analyzed yet" : "Multiple articles selected"}
-                                        </p>
-
-                                        <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-                                            <p className="text-zinc-400 text-sm mb-2">Article Analysis</p>
-                                            <ul className="space-y-3 text-zinc-300 text-sm">
-                                                {displayedArticles.map((article) => (
-                                                    <li key={`${article.category}-${article.id}`}>
-                                                        {article.title}: {article.bias || "Not analyzed yet"}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-
-                                        <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
-                                            <p className="text-zinc-400 text-sm mb-2">What This Means</p>
-                                            <p className="text-zinc-300 text-sm leading-6">
-                                                This section will later explain the overall political or
-                                                editorial leaning of the selected articles and whether the
-                                                coverage appears balanced.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </aside>
+                        // Each article now owns one complete analysis row instead of
+                        // being split across three unrelated page-level panels.
+                        <div className="space-y-6">
+                            {displayedArticles.map((article) => (
+                                <ArticleBriefCard
+                                    key={`${article.category}-${article.id}`}
+                                    article={article}
+                                    isSaved={isArticleSaved(article.id)}
+                                    onToggleSave={toggleSaveArticle}
+                                />
+                            ))}
                         </div>
                     )}
                 </main>

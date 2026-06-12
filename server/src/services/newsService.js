@@ -3,10 +3,22 @@ const { generateArticleBrief } = require("./aiService");
 const NEWS_API_BASE_URL = "https://newsapi.org/v2";
 
 function formatArticle(article, index) {
+  const description =
+    typeof article.description === "string" ? article.description.trim() : "";
+  const content =
+    typeof article.content === "string" &&
+    !["false", "[removed]"].includes(article.content.trim().toLowerCase())
+      ? article.content.trim()
+      : "";
+
   return {
     id: article.url || String(index),
     title: article.title,
-    excerpt: article.description || article.content || "",
+    // Keep both NewsAPI text fields for analysis instead of discarding content
+    // whenever a shorter description is present.
+    excerpt: description || content,
+    description,
+    content,
     source: article.source?.name || "Unknown source",
     author: article.author || null,
     imageUrl: article.urlToImage || null,
@@ -21,17 +33,13 @@ function shouldIncludeAi(value) {
 }
 
 async function enrichArticlesWithBriefs(articles) {
+  // generateArticleBrief applies a process-wide concurrency limit because the
+  // homepage also creates separate simultaneous category requests.
   const enrichedArticles = await Promise.all(
-    articles.map(async (article) => {
-      // Each article gets summary, takeaway, and bias fields. generateArticleBrief
-      // checks MongoDB first so previously analyzed articles do not call Gemini again.
-      const brief = await generateArticleBrief(article);
-
-      return {
-        ...article,
-        ...brief,
-      };
-    })
+    articles.map(async (article) => ({
+      ...article,
+      ...(await generateArticleBrief(article)),
+    }))
   );
 
   return enrichedArticles;

@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import ArticleBriefCard from "../components/ArticleBriefCard";
 import NavigationBar from "../components/NavigationBar";
 import { getSavedArticlesForCurrentUser } from "../utils/savedArticles";
 
@@ -71,46 +72,7 @@ export default function ArticleDetail() {
                         </p>
                     </section>
                 ) : (
-                    <>
-                        <header className="mb-6">
-                            <p className="text-blue-400 text-sm font-semibold uppercase tracking-wide mb-2">
-                                {article.category}
-                            </p>
-                            <h1 className="!text-white text-3xl font-semibold leading-tight">
-                                {article.title}
-                            </h1>
-                        </header>
-
-                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                            <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 min-h-[360px]">
-                                <h2 className="text-2xl font-semibold !text-white mb-6">
-                                    Summary
-                                </h2>
-                                <p className="text-zinc-200 leading-7">
-                                    {article.summary || article.excerpt || "No summary available yet."}
-                                </p>
-                            </section>
-
-                            <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 min-h-[360px]">
-                                <h2 className="text-2xl font-semibold !text-white mb-6">
-                                    Key Takeaway
-                                </h2>
-                                <p className="text-zinc-200 leading-7">
-                                    {article.keyTakeaway || "AI key takeaway will appear here later."}
-                                </p>
-                            </section>
-
-                            <aside className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 min-h-[360px]">
-                                <h2 className="text-2xl font-semibold !text-white mb-6">
-                                    Bias Indicator
-                                </h2>
-                                <div className="w-full h-3 rounded-full bg-gradient-to-r from-blue-500 via-zinc-500 to-red-500 mb-4" />
-                                <p className="text-white font-medium">
-                                    {article.bias || "Not analyzed yet"}
-                                </p>
-                            </aside>
-                        </div>
-                    </>
+                    <ArticleBriefCard article={article} />
                 )}
             </main>
         </div>

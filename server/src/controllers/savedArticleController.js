@@ -14,7 +14,11 @@ function formatSavedArticle(savedArticle) {
     category: savedArticle.category,
     summary: savedArticle.summary,
     keyTakeaway: savedArticle.keyTakeaway,
-    bias: savedArticle.bias,
+    framingSubject: savedArticle.framingSubject,
+    framingLabel: savedArticle.framingLabel,
+    framingScore: savedArticle.framingScore,
+    framingExplanation: savedArticle.framingExplanation,
+    framingStatus: savedArticle.framingStatus,
   };
 }
 
@@ -65,7 +69,19 @@ async function saveArticle(req, res) {
         category: article.category || "news",
         summary: article.summary || "",
         keyTakeaway: article.keyTakeaway || "",
-        bias: article.bias || "",
+        // Persist the complete framing result so saved cards keep the same
+        // subject, marker, label, status, and explanation.
+        framingSubject: article.framingSubject || "",
+        framingLabel: article.framingLabel || "",
+        framingScore: Number.isFinite(article.framingScore)
+          ? article.framingScore
+          : null,
+        framingExplanation: article.framingExplanation || "",
+        framingStatus: ["complete", "insufficient", "unavailable"].includes(
+          article.framingStatus
+        )
+          ? article.framingStatus
+          : "insufficient",
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
