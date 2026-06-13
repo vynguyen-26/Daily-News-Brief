@@ -3,7 +3,7 @@ import {Sparkles, Bookmark, LogIn, LogOut} from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../context/useAuth";
 
-export default function NavigationBar({ onSearch }) {
+export default function NavigationBar({ onHome, onSearch }) {
     const location = useLocation();
     const navigate = useNavigate();
     const { isAuthenticated, logout } = useAuth();
@@ -24,6 +24,18 @@ export default function NavigationBar({ onSearch }) {
         onSearch(trimmedQuery);
     }
 
+    function handleHomeClick(event) {
+        if (!ishome || !onHome) {
+            return;
+        }
+
+        // React Router keeps HomePage mounted when linking from "/" to "/".
+        // Reset its view explicitly and clear the previous search query.
+        event.preventDefault();
+        setQuery("");
+        onHome();
+    }
+
     async function handleLogout() {
         await logout();
         navigate("/login");
@@ -33,7 +45,11 @@ export default function NavigationBar({ onSearch }) {
         <nav className="bg-zinc-950 border-b border-zinc-800">
             <div className="w-full flex items-center justify-between py-4">
                 {/* Logo and Title */}
-                <Link to="/" className="text-white font-bold text-2xl">
+                <Link
+                    to="/"
+                    onClick={handleHomeClick}
+                    className="text-white font-bold text-2xl"
+                >
                     Daily News Brief
                 </Link>
 
@@ -55,6 +71,7 @@ export default function NavigationBar({ onSearch }) {
                 <div className="flex items-center gap-6">
                     <Link
                         to="/"
+                        onClick={handleHomeClick}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
                             ${ishome ? "bg-blue-600 text-white" : "text-zinc-400 hover:text-white hover:bg-zinc-900"}`}
                     >

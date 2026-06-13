@@ -1,7 +1,7 @@
 import NavigationBar from "../components/NavigationBar";
 import CategorySidebar from "../components/CategorySidebar";
 import ArticleBriefCard from "../components/ArticleBriefCard";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
     deleteSavedArticleForCurrentUser,
@@ -38,12 +38,24 @@ const newsApiHeadlineCategories = [
 ];
 
 // These categories create the automatic "top 5 stories" homepage view.
+const defaultArticleCount = 5;
 const defaultHomepageCategories = [
     "business",
     "technology",
     "science",
     "health",
     "sports",
+];
+const fallbackHomepageCategories = [
+    "entertainment",
+    "world",
+    "politics",
+    "environment",
+    "economy",
+    "cybersecurity",
+    "space",
+    "energy",
+    "education",
 ];
 
 // Shared category fetcher used by both the default homepage brief and manual
@@ -89,50 +101,84 @@ export default function HomePage() {
     const showingDefaultBriefRef = useRef(true);
     const displayedArticles = selectedArticle ? [selectedArticle] : categoryArticles;
 
-    useEffect(() => {
-        async function loadDefaultBrief() {
-            setLoading(true);
-            setError("");
+    const loadDefaultBrief = useCallback(async () => {
+        // This function handles both the first page load and explicit returns
+        // from search or manual selection to the default daily brief.
+        showingDefaultBriefRef.current = true;
+        setLoading(true);
+        setError("");
+        setSelectedArticle(null);
+        setSearchResults([]);
+        setCategoryArticles([]);
+        setSelectedCategories([]);
 
-            try {
-                // Load the first homepage view automatically, with the matching
-                // category buttons highlighted as the default daily brief.
-                const articles = await Promise.all(
-                    defaultHomepageCategories.map(async (category) => {
-                        try {
-                            return await requestCategoryArticle(category);
-                        } catch {
-                            return null;
-                        }
-                    })
-                );
-                const availableArticles = articles.filter(Boolean);
+        try {
+            // Load the first homepage view automatically, with the matching
+            // category buttons highlighted as the default daily brief.
+            const articles = await Promise.all(
+                defaultHomepageCategories.map(async (category) => {
+                    try {
+                        return await requestCategoryArticle(category);
+                    } catch {
+                        return null;
+                    }
+                })
+            );
+            const availableArticles = [];
+            const articleIds = new Set();
 
-                if (availableArticles.length === 0) {
-                    throw new Error("No top stories found for today");
-                }
-
-                if (!showingDefaultBriefRef.current) {
-                    // The reader already interacted with the page, so ignore
-                    // the automatic brief response if it finishes late.
+            function addUniqueArticle(article) {
+                if (!article || articleIds.has(article.id)) {
                     return;
                 }
 
-                setSelectedCategories(availableArticles.map((article) => article.category));
-                setCategoryArticles(availableArticles);
-            } catch (err) {
-                if (showingDefaultBriefRef.current) {
-                    setError(err.message);
+                articleIds.add(article.id);
+                availableArticles.push(article);
+            }
+
+            articles.forEach(addUniqueArticle);
+
+            // A category can occasionally have no current headline or a request
+            // can fail. Fill those gaps from other categories so the default
+            // brief still contains five unique stories whenever possible.
+            for (const category of fallbackHomepageCategories) {
+                if (availableArticles.length >= defaultArticleCount) {
+                    break;
                 }
-            } finally {
-                if (showingDefaultBriefRef.current) {
-                    setLoading(false);
+
+                try {
+                    addUniqueArticle(await requestCategoryArticle(category));
+                } catch {
+                    // Keep trying later fallback categories.
                 }
             }
-        }
 
-        loadDefaultBrief();
+            if (availableArticles.length === 0) {
+                throw new Error("No top stories found for today");
+            }
+
+            if (!showingDefaultBriefRef.current) {
+                // The reader already interacted with the page, so ignore
+                // the automatic brief response if it finishes late.
+                return;
+            }
+
+            setSelectedCategories(availableArticles.map((article) => article.category));
+            setCategoryArticles(availableArticles);
+        } catch (err) {
+            if (showingDefaultBriefRef.current) {
+                setError(err.message);
+            }
+        } finally {
+            if (showingDefaultBriefRef.current) {
+                setLoading(false);
+            }
+        }
     }, []);
+
+    useEffect(() => {
+        loadDefaultBrief();
+    }, [loadDefaultBrief]);
 
     useEffect(() => {
         async function loadSavedArticles() {
@@ -205,7 +251,11 @@ export default function HomePage() {
         setSearchResults([]);
 
         try {
-            const res = await fetch(`/api/news/search?q=${encodeURIComponent(query)}`);
+            // Search only fetches article metadata so the result list is not
+            // blocked while the server analyzes every matching article.
+            const res = await fetch(
+                `/api/news/search?q=${encodeURIComponent(query)}&includeAi=false`
+            );
             const data = await res.json();
 
             if (!res.ok) {
@@ -220,12 +270,36 @@ export default function HomePage() {
         }
     }
 
-    function handleSelectArticle(article) {
+    async function handleSelectArticle(article) {
+        setLoading(true);
+        setError("");
         showingDefaultBriefRef.current = false;
-        setSelectedArticle(article);
-        setCategoryArticles([]);
-        setSelectedCategories([]);
-        setSearchResults([]);
+
+        try {
+            // Analyze only the selected result. Keep the result list in place
+            // until this completes so a failed request does not leave a blank page.
+            const res = await fetch("/api/news/analyze", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ article }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.message || "Failed to analyze article");
+            }
+
+            setSelectedArticle(data.article);
+            setCategoryArticles([]);
+            setSelectedCategories([]);
+            setSearchResults([]);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
     }
 
     function isArticleSaved(articleId) {
@@ -253,7 +327,7 @@ export default function HomePage() {
     
     return (
         <div className="w-full min-h-screen px-4 sm:px-6 lg:px-8 py-8 bg-zinc-950 border-b border-zinc-800">
-            <NavigationBar onSearch={handleSearch} />
+            <NavigationBar onHome={loadDefaultBrief} onSearch={handleSearch} />
 
             <div className="flex">
                 <CategorySidebar

@@ -22,6 +22,9 @@ const articleAnalysisSchema = new mongoose.Schema(
       enum: ["complete", "insufficient"],
       default: "insufficient",
     },
+    // Incremented when extraction or analysis rules change so stale cached
+    // results are not reused under a newer interpretation of article text.
+    analysisVersion: { type: Number, default: 1 },
     model: { type: String, default: "" },
   },
   { timestamps: true }

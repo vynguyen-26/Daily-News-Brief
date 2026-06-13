@@ -123,7 +123,17 @@ async function searchArticles({
   );
 }
 
+async function analyzeArticle(article) {
+  // Search results are returned without AI so the list can render immediately.
+  // Enrich only the article the reader chooses instead of blocking on every hit.
+  return {
+    ...article,
+    ...(await generateArticleBrief(article)),
+  };
+}
+
 module.exports = {
+  analyzeArticle,
   getHeadlines,
   searchArticles,
 };

@@ -2,10 +2,28 @@ const { GoogleGenAI } = require("@google/genai");
 const ArticleAnalysis = require("../models/ArticleAnalysis");
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+// Version 3 accepts corroborated rewritten previews and removes partial source
+// tokens left by NewsAPI truncation before generating or caching analysis.
+const CURRENT_ANALYSIS_VERSION = 3;
 const MAX_CONCURRENT_ANALYSES = 2;
 const MAX_GEMINI_ATTEMPTS = 4;
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 const MIN_ARTICLE_TEXT_WORDS = 40;
+const TITLE_STOP_WORDS = new Set([
+  "the",
+  "a",
+  "an",
+  "are",
+  "is",
+  "of",
+  "to",
+  "and",
+  "in",
+  "on",
+  "for",
+  "with",
+]);
+const MEANINGFUL_SHORT_TITLE_WORDS = new Set(["ai", "us", "uk", "eu"]);
 const BAD_CONTENT_PATTERNS = new Set([
   "MENU",
   "ADVERTISEMENT",
@@ -159,7 +177,16 @@ function limitText(text, maxLength) {
     return text || "";
   }
 
-  return `${text.slice(0, maxLength - 3).trim()}...`;
+  const sliced = text.slice(0, maxLength - 3).trimEnd();
+  const lastWordBoundary = sliced.lastIndexOf(" ");
+  const shouldUseWordBoundary =
+    lastWordBoundary >= Math.floor((maxLength - 3) * 0.6);
+  const shortened = shouldUseWordBoundary
+    ? sliced.slice(0, lastWordBoundary)
+    : sliced;
+
+  // Remove punctuation before our ellipsis so shortened copy has one clean ending.
+  return `${shortened.replace(/[.,;:!?…]+$/u, "")}...`;
 }
 
 function cleanArticleText(text) {
@@ -167,17 +194,106 @@ function cleanArticleText(text) {
     return "";
   }
 
-  const cleaned = text
-    .replace(/\[\+\d+\s+chars\]$/i, "")
+  const hasNewsApiTruncationMarker = /\[\+\d+\s+chars\]\s*$/i.test(text);
+  let cleaned = text
+    .replace(/\[\+\d+\s+chars\]\s*$/i, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  if (hasNewsApiTruncationMarker) {
+    // NewsAPI clips content at an arbitrary character before appending its
+    // marker, so drop the final partial token instead of displaying "d…".
+    cleaned = cleaned.replace(/\s+\S*(?:…|\.{3})\s*$/u, "").trimEnd();
+  }
 
   return BAD_CONTENT_PATTERNS.has(cleaned.toUpperCase()) ? "" : cleaned;
 }
 
-function getAvailableArticleText(article) {
+function getNormalizedWords(text) {
+  return text
+    .toLowerCase()
+    .replace(/[’']/g, "'")
+    .replace(/'s\b/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function getMeaningfulWords(text) {
+  return [
+    ...new Set(
+      getNormalizedWords(text).filter(
+        (word) =>
+          !TITLE_STOP_WORDS.has(word) &&
+          (word.length > 2 || MEANINGFUL_SHORT_TITLE_WORDS.has(word))
+      )
+    ),
+  ];
+}
+
+function getTitleOverlap(title, text) {
+  if (!title || !text) {
+    return {
+      overlapCount: 0,
+      requiredOverlap: 1,
+      matches: false,
+    };
+  }
+
+  // Unique meaningful title words prevent repeated terms from inflating the
+  // match, while common short entities such as AI and US remain significant.
+  const titleWords = getMeaningfulWords(title);
+  const textWords = new Set(getNormalizedWords(text));
+  const overlapCount = titleWords.filter((word) => textWords.has(word)).length;
+  const requiredOverlap = titleWords.length < 3 ? 1 : 2;
+
+  return {
+    overlapCount,
+    requiredOverlap,
+    matches: titleWords.length > 0 && overlapCount >= requiredOverlap,
+  };
+}
+
+function hasMeaningfulTextOverlap(firstText, secondText, minimumOverlap = 2) {
+  const firstWords = getMeaningfulWords(firstText);
+  const secondWords = new Set(getMeaningfulWords(secondText));
+  const overlapCount = firstWords.filter((word) => secondWords.has(word)).length;
+
+  return overlapCount >= minimumOverlap;
+}
+
+function getRelevantArticleTextFields(article) {
+  const title = article.title?.trim() || "";
   const description = cleanArticleText(article.description || article.excerpt);
   const content = cleanArticleText(article.content);
+  const descriptionTitleOverlap = getTitleOverlap(title, description);
+  const contentTitleOverlap = getTitleOverlap(title, content);
+  const fieldsCorroborateEachOther = hasMeaningfulTextOverlap(
+    description,
+    content
+  );
+  const descriptionIsRelevant =
+    descriptionTitleOverlap.matches ||
+    (descriptionTitleOverlap.overlapCount > 0 &&
+      contentTitleOverlap.matches &&
+      fieldsCorroborateEachOther);
+  const contentIsRelevant =
+    contentTitleOverlap.matches ||
+    (contentTitleOverlap.overlapCount > 0 &&
+      descriptionTitleOverlap.matches &&
+      fieldsCorroborateEachOther);
+
+  // A publisher description may paraphrase a syndicated title. Permit a weak
+  // title match only when the sibling field strongly matches the title and both
+  // fields share meaningful terms; unrelated boilerplate still fails the gate.
+  return {
+    description: descriptionIsRelevant ? description : "",
+    content: contentIsRelevant ? content : "",
+  };
+}
+
+function getAvailableArticleText(article) {
+  const { description, content } = getRelevantArticleTextFields(article);
 
   // Avoid inflating the word count when NewsAPI repeats the description as content.
   return description && content && description !== content
@@ -238,18 +354,42 @@ function createFallbackKeyTakeaway(article, summary = "") {
   return "The most important takeaway is not available for this article yet.";
 }
 
-function createInsufficientTextBrief(article) {
-  const preview = cleanArticleText(article.description || article.excerpt);
-  const headline = article.title?.trim() || "this topic";
-  const evidenceLabel = preview ? "headline and available preview" : "headline";
-  const summaryBasis = (preview || headline).replace(/[.!?]+$/, "");
+function createHeadlineOnlyBrief(article) {
+  const headline = article.title?.trim();
 
   return {
-    summary: `Full article text was not available. Based on the ${evidenceLabel}, this article appears to discuss ${limitText(
+    summary: headline
+      ? `Full article text was not available. The headline reports: "${headline}".`
+      : "Full article text and a usable headline were not available.",
+    keyTakeaway: headline
+      ? "Only the headline was available, so a reliable takeaway cannot be determined."
+      : "A reliable takeaway cannot be determined from the available article data.",
+    framingSubject: "",
+    framingLabel: "Unknown",
+    framingScore: null,
+    framingExplanation:
+      "Relevant article text was not available to determine its framing reliably.",
+    framingStatus: "insufficient",
+  };
+}
+
+function createInsufficientTextBrief(article) {
+  const { description, content } = getRelevantArticleTextFields(article);
+  const preview = description || content;
+
+  if (!preview) {
+    // Do not turn unrelated publisher boilerplate into a claim about the story.
+    return createHeadlineOnlyBrief(article);
+  }
+
+  const summaryBasis = preview.replace(/[.!?]+$/, "");
+
+  return {
+    summary: `Full article text was not available. The relevant preview reports: ${limitText(
       summaryBasis,
       220
     )}.`,
-    keyTakeaway: `The ${evidenceLabel} suggests ${limitText(
+    keyTakeaway: `Based on the limited preview, the main reported point is: ${limitText(
       summaryBasis,
       150
     )}, but more article text is needed for a reliable takeaway.`,
@@ -333,13 +473,15 @@ function buildAnalysisCacheDocument(article, brief) {
     framingScore: brief.framingScore,
     framingExplanation: brief.framingExplanation || "",
     framingStatus: brief.framingStatus,
+    analysisVersion: CURRENT_ANALYSIS_VERSION,
     model: GEMINI_MODEL,
   };
 }
 
 function buildArticleBriefPrompt(article) {
-  const description = cleanArticleText(article.description || article.excerpt);
-  const content = cleanArticleText(article.content);
+  // Only title-related fields are sent to Gemini; rejected fields are omitted
+  // rather than asking the model to decide whether boilerplate is relevant.
+  const { description, content } = getRelevantArticleTextFields(article);
 
   return `
 Create a short daily news brief for this article.
@@ -376,16 +518,20 @@ URL: ${article.url || ""}
 
 async function generateArticleBrief(article) {
   if (!article.id) {
-    return normalizeBrief(DEFAULT_BRIEF, article);
+    // Without a stable ID the result cannot be cached, so return the same
+    // transparent insufficient-text copy instead of implying unsupported facts.
+    return createInsufficientTextBrief(article);
   }
 
-  // Read completed cache entries before applying today's source-text gate so a
-  // previously successful analysis is never replaced by an insufficient result.
+  // Only reuse analyses produced under the current extraction rules. Older
+  // records remain in place but are regenerated lazily when requested.
   const cachedAnalysis = await ArticleAnalysis.findOne({
     articleId: article.id,
+    analysisVersion: CURRENT_ANALYSIS_VERSION,
+    framingStatus: "complete",
   }).lean();
 
-  if (cachedAnalysis?.framingStatus === "complete") {
+  if (cachedAnalysis) {
     return formatCachedAnalysis(cachedAnalysis);
   }
 
@@ -395,7 +541,7 @@ async function generateArticleBrief(article) {
 
   if (isArticleTextInsufficient(article)) {
     // Do not ask Gemini to infer tone from a headline or publisher boilerplate.
-    // Cache the qualified preview-based copy so later loads stay transparent.
+    // Cache the relevant-preview or headline-only copy for consistent reloads.
     const insufficientBrief =
       qualifiedSourceBrief || createInsufficientTextBrief(article);
 
