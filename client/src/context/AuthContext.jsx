@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { AuthContext } from "./authState";
+import { apiUrl } from "../utils/api";
 
 async function requestJson(path, options = {}) {
-  const response = await fetch(path, {
+  // Auth calls use the same deployed API base URL as the rest of the app.
+  const response = await fetch(apiUrl(path), {
     ...options,
     credentials: "include",
     headers: {

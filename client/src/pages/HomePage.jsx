@@ -8,6 +8,7 @@ import {
     getSavedArticlesForCurrentUser,
     saveArticleForCurrentUser,
 } from "../utils/savedArticles";
+import { apiUrl } from "../utils/api";
 import { useAuth } from "../context/useAuth";
 
 const categories = [
@@ -67,7 +68,8 @@ async function requestCategoryArticle(categoryValue) {
         ? `/api/news/headlines?category=${encodeURIComponent(categoryValue)}&pageSize=1`
         : `/api/news/search?q=${encodeURIComponent(categoryValue)}&from=${today}&to=${today}&sortBy=popularity&pageSize=1`;
 
-    const res = await fetch(endpoint);
+    // Use the deployed backend URL after the app is built and hosted on S3.
+    const res = await fetch(apiUrl(endpoint));
     const data = await res.json();
 
     if (!res.ok) {
@@ -254,7 +256,7 @@ export default function HomePage() {
             // Search only fetches article metadata so the result list is not
             // blocked while the server analyzes every matching article.
             const res = await fetch(
-                `/api/news/search?q=${encodeURIComponent(query)}&includeAi=false`
+                apiUrl(`/api/news/search?q=${encodeURIComponent(query)}&includeAi=false`)
             );
             const data = await res.json();
 
@@ -278,7 +280,7 @@ export default function HomePage() {
         try {
             // Analyze only the selected result. Keep the result list in place
             // until this completes so a failed request does not leave a blank page.
-            const res = await fetch("/api/news/analyze", {
+            const res = await fetch(apiUrl("/api/news/analyze"), {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
